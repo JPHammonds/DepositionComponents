@@ -3,7 +3,7 @@ import os
 from configparser import NoSectionError
 
 # ## Coming lines help define the logging facility
-LOGGER_NAME = "logging_components"
+LOGGER_NAME = "deposition_components"
 LOGGER_DEFAULT = {
     'version' : 1,
     'handlers' : {'consoleHandler' : {'class' : 'logging.StreamHandler',
