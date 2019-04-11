@@ -219,36 +219,6 @@ class GunSelector(DepositionListDevice):
         self.number_of_guns = NUMBER_OF_GUNS
         super(GunSelector, self).__init__(*args, **kwargs)
         
-#     # Remove this method JPH 2018-12-18.  Use Set method with gun_number = 0
-#     def disable_gun(self, gun_number, ps_low_level=5.0, override=False):
-#         done_status = DeviceStatus(self)
-#         logger.info("Disabling gun %d" % gun_number)
-#         gun_to_disable = self.guns.__getattr__("gun%d" % gun_number)
-#         current_active_gun = self.current_active_gun.get()
-#         if (current_active_gun == gun_number) or (override == True):
-#             logger.debug("Disable the active gun")
-#             self.mps1_disable_output.set(self.ENABLE_TEXT)        :param purge: logical to determine if this se
-
-#             self.mps1_disable_output.set(self.DISABLE_TEXT)
-# 
-#             def verify_ps1_voltage_cb(value, timestamp, **kwargs):
-#                 logger.debug("Waiting to reach low volt limit %f voltage %f " % \
-#                             (ps_low_level, value))
-#                 if value < ps_low_level:
-#                     logger.info("ps1 has been disabled")
-#                     # Once the power supply goes below ps_low_level disable it
-#                     gun_to_disable.relay_magnetron.set(self.DISABLE_TEXT)
-#                     logger.info("Gun %d is disabled")
-#                     self.current_active_gun.set(0.0)
-#                     self.ps1_voltage.clear_sub(verify_ps1_voltage_cb)
-#                     done_status._finished()
-# 
-#             self.ps1_voltage.subscribe(verify_ps1_voltage_cb)
-#         else:
-#             logger.info("Request to disable gun %d but it is not the " \
-#                         "current_active_gun. Use override=True to force " \
-#                         "disable" % gun_number)
-        
         
     def _enable_gun(self, gun_number, ps_low_level=5.0):
         '''
@@ -333,7 +303,6 @@ class GunSelector(DepositionListDevice):
         current_active_gun = self.current_active_gun.get()
         self.mps1_disable_output.set(self.ENABLE_TEXT)
         self.mps1_disable_output.set(self.DISABLE_TEXT)
-     # Remove this method JPH 2018-12-18 Use Set
 
         def verify_ps1_voltage_cb(value, timestamp, **kwargs):
             logger.debug("Waiting to reach low volt limit %f voltage %f " % \
@@ -352,27 +321,6 @@ class GunSelector(DepositionListDevice):
         self.ps1_voltage.subscribe(verify_ps1_voltage_cb)
         return done_status
             
-# This method had been removed.  Disabling the power supply should be done by 
-# setting the gun # to 0 w/ set.  This will disable all active guns.  Note that the 
-# suooly is alsdo disabled when changing the gun # with the set command.
-#     def mps1_disable(self):
-#         logger.info("disable_power_supply")
-#         done_status = DeviceStatus(self)
-#         self.mps1_disable_output.set(self.ENABLE_TEXT)
-#         self.mps1_disable_output.set(self.DISABLE_TEXT)
-# 
-#         # Add verify power is down.
-#         def verify_ps1_voltage_cb(value, timestamp, **kwargs):
-#             logger.debug("Waiting to reachbackfill low volt limit %f voltage %f " % \
-#                         (ps_low_level, value))
-#             if value < ps_low_level:
-#                 logger.info("ps1 has been disabled")
-#                 self.ps1_voltage.clear_sub(verify_ps1_voltage_cb)
-#                 done_status._finished()
-# 
-#         self.ps1_voltage.subscribe(verify_ps1_voltage_cb)
-#         return done_status
-        
     def mps1_enable(self):
         logger.debug("enable_power_supply")
         yield from bps.mv(self.mps1_enable_output, self.ENABLE_TEXT)
