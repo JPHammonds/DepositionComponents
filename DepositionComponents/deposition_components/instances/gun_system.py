@@ -35,17 +35,13 @@ class Gun(DepositionListDevice):
          "{self.prefix}:plc:Magnetron_{self.instance_number}_Power_RB",
           write_pv="{self.prefix}:plc:Mag{self.instance_number}_Pwr_Enable_OUT",
           name="relay_magnetron",
-          string=True,
+#          string=True,
           put_complete=True,
           kind=Kind.config)
     voltage_avg = FC(EpicsSignal,
                      "{self.prefix}:userAve{self.instance_number}.VAL",
                       name='voltage_avg',
                       kind=Kind.config)
-    water_flow_cathode_raw = FC(EpicsSignal, \
-                            "{self.prefix}w:USB231:1:Ai{self.instance_number}",
-                             name='water_flow_cathode_raw',
-                             kind=Kind.config)
     water_flow_cathode = FC(EpicsSignal, \
                         "{self.prefix}:userCalcOut1{self.instance_number}.VAL",
                          name="water_flow_cathode",
@@ -67,25 +63,35 @@ class Gun(DepositionListDevice):
 #         self.zero_position = zero_positionbackfill
 #         self.coat_velocity = coat_velocity
 #         self.travel_velocity = travel_velocity
-        self.sample_lower_extent = sample_lower_extent
-        self.sample_upper_extent = sample_upper_extent
-        self.overspray = overspray
         super(Gun, self).__init__(*args, **kwargs)
-        self.high_position.put(self.zero_position.value - \
-                               self.sample_upper_extent - \
-                               self.mask_width.value / self.overspray)
-        self.low_position.put(self.zero_position.value - \
-                              self.sample_lower_extent - \
-                              self.mask_width.value / self.overspray)
+#         self.sample_lower_extent = sample_lower_extent
+#         self.sample_upper_extent = sample_upper_extent
+#         self.overspray = overspray
+#         self.high_position.put(self.zero_position.value - \
+#                                self.sample_upper_extent - \
+#                                self.mask_width.value / self.overspray)
+#         self.low_position.put(self.zero_position.value - \
+#                               self.sample_lower_extent - \
+#                               self.mask_width.value / self.overspray)
+#         
+#         self.travel_velocity.put(travel_velocity)
+#         self.coat_velocity.put(coat_velocity)
+#         self.mask_width.put(mask_width)
+#         self.zero_position.put(zero_position)
+        self.set_travellimits(mask_width, zero_position, \
+                              sample_lower_extent, sample_upper_extent, \
+                              coat_velocity, travel_velocity, \
+                              overspray)
+        
         logger.debug("dir(self %s" % dir(self))
         
     def coat_layers(self, motor, number_of_layers):
         logger.info("gun number %d, Motor %s" % (self.instance_number, motor))
         for l in number_of_layers:
             yield from bps.mv(motor.velocity, self.coat_velocity)
-            yield from bps.mv(motor, self.high_position)
+            yield from bps.mv(motor, self.high_position.value)
             yield from bps.sleep(.1)
-            yield from bps.mv(motor, self.low_position)
+            yield from bps.mv(motor, self.low_position.value)
 
     def home(self, motor, speed=0):
         if speed == 0:
@@ -93,7 +99,7 @@ class Gun(DepositionListDevice):
         logger.info("gun %d, motor, motor: %s, speed" % \
                     (self.instance_number, motor, speed))
         yield from bps.mv(motor.velocity, speed)
-        yield from motor.mv(self.zero - position)
+        yield from motor.mv(self.zero_position.value)
 
     def goToLowPosition(self, motor, speed=0):
         if speed == 0:
@@ -101,7 +107,7 @@ class Gun(DepositionListDevice):
         logger.info("gun %d, motor, motor: %s, speed" % \
                     (self.instance_number, motor, speed))
         yield from bps.mv(motor.velocity, speed)
-        yield from motor.mv(self.low_position)
+        yield from motor.mv(self.low_position.value)
 
     def goToHighPosition(self, motor, speed=0):
         if speed == 0:
@@ -109,7 +115,27 @@ class Gun(DepositionListDevice):
         logger.info("gun %d, motor, motor: %s, speed" % \
                     (self.instance_number, motor, speed))
         yield from bps.mv(motor.velocity, speed)
-        yield from motor.mv(self.high_position)
+        yield from motor.mv(self.high_position.value)
+        
+    def set_travellimits(self, \
+                         mask_width=40.0, zero_position=1000.0, \
+                         sample_lower_extent=100.0, sample_upper_extent=250, \
+                         coat_velocity=10.0, travel_velocity=15.0, \
+                         overspray=45.0):
+        self.sample_lower_extent = sample_lower_extent
+        self.sample_upper_extent = sample_upper_extent
+        self.overspray = overspray
+        self.high_position.put(self.zero_position.value - \
+                               self.sample_upper_extent - \
+                               self.mask_width.value / self.overspray)
+        self.low_position.put(self.zero_position.value - \
+                              self.sample_lower_extent - \
+                              self.mask_width.value / self.overspray)
+        self.travel_velocity.put(travel_velocity)
+        self.coat_velocity.put(coat_velocity)
+        self.mask_width.put(mask_width)
+        self.zero_position.put(zero_position)
+        
         
     def enable(self):
         # logger.info("gun number %d" % d)
@@ -184,7 +210,8 @@ class GunSelector(DepositionListDevice):
                    string=True,
                    put_complete=True)
     guns = DDC(_gun_fields('', 'gun', range(1, 9)))
-    logger.debug("guns %s" % guns)
+#     this does not work because guns is not fully defined here.  need to do __init__
+#     logger.debug("guns %s" % guns)
 
     def __init__(self, *args, **kwargs):
         logger.error("__init__ for GunSelector")
@@ -238,12 +265,14 @@ class GunSelector(DepositionListDevice):
         '''
         done_status = DeviceStatus(self)
         # Before enabling the relay
-        self.mps1_disable_output.set(self.ENABLE_TEXT)
-        self.mps1_disable_output.set(self.DISABLE_TEXT)
+        self.mps1_enable_output.set(self.ENABLE_TEXT)
+        self.mps1_enable_output.set(self.DISABLE_TEXT)
         current_active_gun = int(self.current_active_gun.get())
-        gun_to_enable = self.guns.__getattr__("gun%d" % gun_number)
+#        gun_to_enable = self.guns.__getattr__("gun%d" % gun_number)
+        gun_to_enable = self.guns.__getattribute__("gun%d" % gun_number)
         if current_active_gun != 0:
-            gun_current = self.guns.__getattr__("gun%d" % current_active_gun)
+#             gun_current = self.guns.__getattr__("gun%d" % current_active_gun)
+            gun_current = self.guns.__getattribute__("gun%d" % current_active_gun)
         logger.info("Enabling gun %d, current_active_gun %d" % \
               (gun_number, current_active_gun))
  
@@ -308,12 +337,12 @@ class GunSelector(DepositionListDevice):
 
         def verify_ps1_voltage_cb(value, timestamp, **kwargs):
             logger.debug("Waiting to reach low volt limit %f voltage %f " % \
-                        (ps_low_level, value))
-            if value < ps_low_level:
+                        (ps_low_level, float(value)))
+            if float(value) < float(ps_low_level):
                 logger.info("ps1 has been disabled")
                 # Once the power supply goes below ps_low_level disable it
                 for gun_index in range(1, 9):
-                    gun_to_disable = self.guns.__getattr__("gun%d" % gun_index)
+                    gun_to_disable = self.guns.__getattribute__("gun%d" % gun_index)
                     gun_to_disable.relay_magnetron.set(self.DISABLE_TEXT)
                 self.current_active_gun.set(0.0)
                 logger.info("All guns are disabled")
@@ -323,36 +352,40 @@ class GunSelector(DepositionListDevice):
         self.ps1_voltage.subscribe(verify_ps1_voltage_cb)
         return done_status
             
-    def mps1_disable(self):
-        logger.info("disable_power_supply")
-        self.mps1_disable_output.set(self.ENABLE_TEXT)
-        self.mps1_disable_output.set(self.DISABLE_TEXT)
-
-        # Add verify power is down.
-        def verify_ps1_voltage_cb(value, timestamp, **kwargs):
-            logger.debug("Waiting to reachbackfill low volt limit %f voltage %f " % \
-                        (ps_low_level, value))
-            if value < ps_low_level:
-                logger.info("ps1 has been disabled")
-                self.ps1_voltage.clear_sub(verify_ps1_voltage_cb)
-                done_status._finished()
-
-        self.ps1_voltage.subscribe(verify_ps1_voltage_cb)
-        return done_status
+# This method had been removed.  Disabling the power supply should be done by 
+# setting the gun # to 0 w/ set.  This will disable all active guns.  Note that the 
+# suooly is alsdo disabled when changing the gun # with the set command.
+#     def mps1_disable(self):
+#         logger.info("disable_power_supply")
+#         done_status = DeviceStatus(self)
+#         self.mps1_disable_output.set(self.ENABLE_TEXT)
+#         self.mps1_disable_output.set(self.DISABLE_TEXT)
+# 
+#         # Add verify power is down.
+#         def verify_ps1_voltage_cb(value, timestamp, **kwargs):
+#             logger.debug("Waiting to reachbackfill low volt limit %f voltage %f " % \
+#                         (ps_low_level, value))
+#             if value < ps_low_level:
+#                 logger.info("ps1 has been disabled")
+#                 self.ps1_voltage.clear_sub(verify_ps1_voltage_cb)
+#                 done_status._finished()
+# 
+#         self.ps1_voltage.subscribe(verify_ps1_voltage_cb)
+#         return done_status
         
     def mps1_enable(self):
         logger.debug("enable_power_supply")
-        self.mps1_enable_output.set(self.ENABLE_TEXT)
-        self.mps1_enable_output.set(self.DISABLE_TEXT)
-        disable
+        yield from bps.mv(self.mps1_enable_output, self.ENABLE_TEXT)
+        yield from bps.mv(self.mps1_enable_output, self.DISABLE_TEXT)
+    
         
     def mps1_power_on(self):
         logger.debug("mps1_power_on")
-        yield from bps.mv(self.power_on, True)
+        yield from bps.mv(self.power_on, self.ENABLE_TEXT)
         
     def mps1_power_off(self):
         logger.debug("enable_power_on")
-        yield from bps.mv(self.power_on, False)
+        yield from bps.mv(self.power_on, self.DISABLE_TEXT)
         
     def set(self, gun, **kwargs):
         ''' 
