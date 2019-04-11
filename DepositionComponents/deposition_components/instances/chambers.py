@@ -12,6 +12,8 @@ from deposition_components.generic.ColdCathodeGauge import ColdCathodeGauge
 from deposition_components.generic.GateValve import GateValve
 from deposition_components.generic.BackFill import BackFill
 from ophyd.signal import EpicsSignal
+from deposition_components.generic.VariableFrequencyDrivePump import VariableFrequencyDrivePump
+from deposition_components.generic.SealsPump import SealsPump
 
 class LandingChamber(DepositionListDevice):
     '''
@@ -216,3 +218,23 @@ class MainChamber(DepositionListDevice):
     pressure_1000t = FC(EpicsSignal,
                         '{self.prefix}:plc:PT_2_IN',
                         name='pressure_1000t')    
+    vp1_substitutions = {'speed_read_pv_suffix': \
+                         ':plc:VFD_1_IN',
+                         'speed_write_pv_suffix': ':plc:VFD_1_OUT',
+                         'n2_purge_read_pv_suffix': \
+                         ':plc:EOV5_N2_Purge_to_VP1_RB',
+                         'n2_purge_write_pv_suffix': \
+                         ':plc:N2_Purge_VP1_Open_OUT',
+                         'power_on_read_pv_suffix': \
+                         ':plc:VP1_Process_Vacuum_Pump_RB',
+                         'power_on_write_pv_suffix': \
+                         ':plc:VP1_Process_Vacuum_Pump_RB',
+                         'kind': Kind.normal}
+    vp1 = Cpt(VariableFrequencyDrivePump, '', **vp1_substitutions)
+    vp2_substitutions = {'power_on_read_pv_suffix': \
+                         ':plc:EOV1_VP2_Seals_Pump_RB',
+                         'power_on_write_pv_suffix': \
+                         ':plc:VP2_Seals_Pump_On_OUT',
+                         'kind': Kind.normal}
+    vp2 = Cpt(SealsPump, '', **vp2_substitutions)
+
