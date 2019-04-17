@@ -52,6 +52,7 @@ class Gun(DepositionListDevice):
     travel_velocity = Cpt(Signal, value=75.0)
     high_position = Cpt(Signal, value=0.0)
     low_position = Cpt(Signal, value=0.0)
+    overspray = Cpt(Signal, value=45.0)
 
     def __init__(self, *args, ch_name=None, \
                  mask_width=40.0, zero_position=1000.0, \
@@ -59,26 +60,8 @@ class Gun(DepositionListDevice):
                  coat_velocity=10.0, travel_velocity=15.0, \
                  overspray=45.0, **kwargs):
         self._ch_name = ch_name
-#         self.mask_width = mask_width
-#         self.zero_position = zero_positionbackfill
-#         self.coat_velocity = coat_velocity
-#         self.travel_velocity = travel_velocity
         super(Gun, self).__init__(*args, **kwargs)
-#         self.sample_lower_extent = sample_lower_extent
-#         self.sample_upper_extent = sample_upper_extent
-#         self.overspray = overspray
-#         self.high_position.put(self.zero_position.value - \
-#                                self.sample_upper_extent - \
-#                                self.mask_width.value / self.overspray)
-#         self.low_position.put(self.zero_position.value - \
-#                               self.sample_lower_extent - \
-#                               self.mask_width.value / self.overspray)
-#         
-#         self.travel_velocity.put(travel_velocity)
-#         self.coat_velocity.put(coat_velocity)
-#         self.mask_width.put(mask_width)
-#         self.zero_position.put(zero_position)
-        self.set_travellimits(mask_width, zero_position, \
+        self.set_travel_limits(mask_width, zero_position, \
                               sample_lower_extent, sample_upper_extent, \
                               coat_velocity, travel_velocity, \
                               overspray)
@@ -95,46 +78,95 @@ class Gun(DepositionListDevice):
 
     def home(self, motor, speed=0):
         if speed == 0:
-            speed = self.travel_velocity
+            speed = self.travel_velocity.value
         logger.info("gun %d, motor, motor: %s, speed" % \
                     (self.instance_number, motor, speed))
         yield from bps.mv(motor.velocity, speed)
-        yield from motor.mv(self.zero_position.value)
+        yield from bps.mv(motor, self.zero_position.value)
 
     def goToLowPosition(self, motor, speed=0):
         if speed == 0:
-            speed = self.travel_velocity
-        logger.info("gun %d, motor, motor: %s, speed" % \
-                    (self.instance_number, motor, speed))
+            speed = self.travel_velocity.value
+#         logger.info("gun %d, motor, motor: %s, speed" % \
+#                     ( motor, speed))
         yield from bps.mv(motor.velocity, speed)
-        yield from motor.mv(self.low_position.value)
+        yield from bps.mv(motor, self.low_position.value)
 
     def goToHighPosition(self, motor, speed=0):
         if speed == 0:
-            speed = self.travel_velocityinstance_number
-        logger.info("gun %d, motor, motor: %s, speed" % \
-                    (self.instance_number, motor, speed))
+            speed = self.travel_velocity.value
+#         logger.info("gun %d, motor, motor: %s, speed" % \
+#                     (self.instance_number, motor, speed))
         yield from bps.mv(motor.velocity, speed)
-        yield from motor.mv(self.high_position.value)
+        yield from bps.mv(motor, self.high_position.value)
         
-    def set_travellimits(self, \
+    def set_coat_velocity(self, velocity):
+        '''
+        Setter method for the coat velocity.  Controls moves while coating the sample
+        '''
+        self.coat_velocity.put(velocity)
+        
+        
+    def set_travel_velocity(self, velocity):
+        '''
+        Setter method for travel velocity. Controls moves while not coating
+        '''
+        self.travel_velocity.put(velocity)
+
+    def set_sample_extents(self, lower=100.0, upper=250.0):
+        '''
+        Set sample extents.  These are offsets with reference to the zero_position
+        for this gun.  These should be the same for each gun.
+        '''
+        self.sample_lower_extent = lower
+        self.sample_upper_extent = upper
+        self.low_position.put(self.zero_position.value - \
+                              self.sample_lower_extent + \
+                              self.mask_width.value/2 + \
+                              self.overspray.value)
+        self.high_position.put(self.zero_position.value - \
+                               self.sample_upper_extent - \
+                               self.mask_width.value/2  - \
+                               self.ove
+                               rspray.value)
+        
+    def set_overspray(self, overspray):
+        '''
+        set the overspray.  This is an extra distance to start spraying before&after 
+        the edge of the mask.
+        '''
+        self.overspray.put(overspray)
+        
+    def set_mask_width(self, mask_width):
+        '''
+        Set the mask width.  This is a physical mask over the sample.
+        '''
+        self.mask_width.put(mask_width)
+        
+    def set_travel_limits(self, \
                          mask_width=40.0, zero_position=1000.0, \
                          sample_lower_extent=100.0, sample_upper_extent=250, \
                          coat_velocity=10.0, travel_velocity=15.0, \
                          overspray=45.0):
-        self.sample_lower_extent = sample_lower_extent
-        self.sample_upper_extent = sample_upper_extent
-        self.overspray = overspray
-        self.high_position.put(self.zero_position.value - \
-                               self.sample_upper_extent - \
-                               self.mask_width.value / self.overspray)
-        self.low_position.put(self.zero_position.value - \
-                              self.sample_lower_extent - \
-                              self.mask_width.value / self.overspray)
-        self.travel_velocity.put(travel_velocity)
-        self.coat_velocity.put(coat_velocity)
+        '''
+        Set information about position of the sample.  Things are broken down 
+        with a reference to location of the edge of the carriage and references 
+        to the sample location from the edge of the carriage.  For now this should be
+        run in the startup to at least set the zero_position, mask_width, and overspray
+        which do not change often.  Ideally, would like to get some of this into a database
+        to store these positions so that samples can reference a setup to get this 
+        information.  See how things work.  Have added other methods to change things
+        that change more often.  
+        sample extents and coat velocity should probably be set for each layer.  They will 
+        determine more on where to coat and how thick.
+        '''
+        self.overspray.put(overspray)
         self.mask_width.put(mask_width)
         self.zero_position.put(zero_position)
+        self.set_sample_extents(lower=sample_lower_extent, \
+                                upper=sample_upper_extent)
+        self.travel_velocity.put(travel_velocity)
+        self.coat_velocity.put(coat_velocity)
         
         
     def enable(self):
@@ -147,6 +179,16 @@ class Gun(DepositionListDevice):
 
 
 class GunSelector(DepositionListDevice):
+    '''
+    This device encapsulates information about the ion guns used for 
+    deposition.  It is used to control which gun is selected and, when 
+    used properly, provides check so that magnetrons that enable/disable
+    a particular gun are not switched while power to the gun is enabled.
+    The user should not directly enable/disable the magnetron for a gun
+    but rather should use the set method on this GunSelector to select
+    the gun.  It will provide a check that the gun voltage dips below a
+    level before switching magnetrons on & off.
+    '''
     DISABLE_TEXT = 0
     ENABLE_TEXT = 1
     PS_LOW_LEVEL_TEXT = 'ps_low_level'
@@ -170,44 +212,44 @@ class GunSelector(DepositionListDevice):
     ps1_voltage = FC(EpicsSignal, "{self.prefix}:userCalc8",
                      write_pv="{self.prefix}:userCalc5.A",
                      name="ps1_ps_voltage",
-                     string=True,
+#                      string=True,
                      put_complete=True)
     ps1_current = FC(EpicsSignal, "{self.prefix}:userCalc10",
                      write_pv="{self.prefix}:userCalc7.A",
                      name="ps1_ps_current",
-                     string=True,
+#                      string=True,
                      put_complete=True)
     ps1_power = FC(EpicsSignal, "{self.prefix}:userCalc9",
                    write_pv="{self.prefix}:userCalc6.A",
                    name="ps1_ps_power",
-                   string=True,
+#                    string=True,
                    put_complete=True)
     mps1_voltage = FC(EpicsSignal, "{self.prefix}:ION:1:target_voltage_sp_rd",
                      write_pv="{self.prefix}:ION:1:voltage",
                      name="mps1_ps_voltage",
-                     string=True,
+#                      string=True,
                      put_complete=True)
     mps1_current = FC(EpicsSignal, "{self.prefix}:ION:1:target_current_sp_rd",
                      write_pv="{self.prefix}:ION:1:current",
                      name="mps1_ps_current",
-                     string=True,
+#                      string=True,
                      put_complete=True)
     mps1_power = FC(EpicsSignal, "{self.prefix}:ION:1:target_power_sp_rd",
                    write_pv="{self.prefix}:ION:1:power",
                    name="mps1_ps_power",
-                   string=True,
+#                    string=True,
                    put_complete=True)
     mps1_voltage_rbv = FC(EpicsSignal, "{self.prefix}:ION:1:volts_rd",
                      name="mps1_ps_voltage_rbv",
-                     string=True,
+#                      string=True,
                      put_complete=True)
     mps1_current_rbv = FC(EpicsSignal, "{self.prefix}:ION:1:amps_rd",
                      name="mps1_ps_current_rbv",
-                     string=True,
+#                      string=True,
                      put_complete=True)
     mps1_power_rbv = FC(EpicsSignal, "{self.prefix}:ION:1:watts_rd",
                    name="mps1_ps_power_rbv",
-                   string=True,
+#                    string=True,
                    put_complete=True)
     guns = DDC(_gun_fields('', 'gun', range(1, 9)))
 #     this does not work because guns is not fully defined here.  need to do __init__
