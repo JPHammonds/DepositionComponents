@@ -4,6 +4,7 @@ Created on Jan 23, 2019
 @author: hammonds
 '''
 import logging
+import time
 from _collections import OrderedDict
 from deposition_components.DepositionListDevice import DepositionListDevice
 import bluesky.plan_stubs as bps
@@ -127,8 +128,7 @@ class Gun(DepositionListDevice):
         self.high_position.put(self.zero_position.value - \
                                self.sample_upper_extent - \
                                self.mask_width.value/2  - \
-                               self.ove
-                               rspray.value)
+                               self.overspray.value)
         
     def set_overspray(self, overspray):
         '''
@@ -278,6 +278,7 @@ class GunSelector(DepositionListDevice):
         done_status = DeviceStatus(self)
         # Before enabling the relay
         self.mps1_enable_output.set(self.ENABLE_TEXT)
+        time.sleep(.1)
         self.mps1_enable_output.set(self.DISABLE_TEXT)
         current_active_gun = int(self.current_active_gun.get())
 #        gun_to_enable = self.guns.__getattr__("gun%d" % gun_number)
@@ -344,6 +345,7 @@ class GunSelector(DepositionListDevice):
  
         current_active_gun = self.current_active_gun.get()
         self.mps1_disable_output.set(self.ENABLE_TEXT)
+        time.sleep(.1)
         self.mps1_disable_output.set(self.DISABLE_TEXT)
 
         def verify_ps1_voltage_cb(value, timestamp, **kwargs):
